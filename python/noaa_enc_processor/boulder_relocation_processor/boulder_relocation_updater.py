@@ -8,13 +8,14 @@ import zipfile
 import requests
 import json
 import csv
+import xml.etree.ElementTree as ET # --- XML parser for GPX payload
 from arcgis.gis import GIS
 
-def update_boulder_layer(gis, item_id, project_map, csv_path=None):
+def update_boulder_layer(gis, item_id, geojson_map, gpx_project_map=None, csv_path=None):
     all_esri_features = []
 
     # Download and process GeoJSON files
-    for url, project_name in project_map.items():
+    for url, project_name in geojson_map.items():
         print(f"Downloading: {url} for Project: {project_name}")
         
         response = requests.get(url)
@@ -48,6 +49,63 @@ def update_boulder_layer(gis, item_id, project_map, csv_path=None):
                                 }
                             }
                             all_esri_features.append(esri_feat) 
+
+    # Download and process remote GPX zip files
+    # Using GPX because this Quintham plotter file didn't have a GeoJSON option
+    if gpx_project_map:
+        for url, project_name in gpx_project_map.items():
+            print(f"Downloading GPX: {url} for Project: {project_name}")
+            
+            response = requests.get(url)
+            if response.status_code != 200:
+                print(f"Failed to download {url}")
+                continue
+                
+            with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+                for filename in z.namelist():
+                    if filename.endswith('.gpx'):
+                        with z.open(filename) as f:
+                            try:
+                                # Parse XML 
+                                tree = ET.parse(f)
+                                root = tree.getroot()
+                                
+                                # Dynamic handling of GPX XML namespaces
+                                ns = {'gpx': root.tag.split('}')[0].strip('{')} if '}' in root.tag else {'gpx': ''}
+                                prefix = 'gpx:' if ns['gpx'] else ''
+                                
+                                # Query for <wpt> (waypoints). If Quintham tracks them as tracks/routes,
+                                # use f'.//{prefix}trkpt' instead.
+                                waypoints = root.findall(f'.//{prefix}wpt', ns)
+                                
+                                for wpt in waypoints:
+                                    try:
+                                        lon = float(wpt.get('lon'))
+                                        lat = float(wpt.get('lat'))
+                                        
+                                        name_el = wpt.find(f'{prefix}name', ns)
+                                        desc_el = wpt.find(f'{prefix}desc', ns)
+                                        
+                                        boulder_id = name_el.text if name_el is not None else None
+                                        information = desc_el.text if desc_el is not None else None
+                                        
+                                        gpx_feat = {
+                                            "attributes": {
+                                                "Boulder_ID": boulder_id,
+                                                "Information": information,
+                                                "Project": project_name
+                                            },
+                                            "geometry": {
+                                                "x": lon,
+                                                "y": lat,
+                                                "spatialReference": {"wkid": 4326}
+                                            }
+                                        }
+                                        all_esri_features.append(gpx_feat)
+                                    except (ValueError, TypeError):
+                                        continue
+                            except Exception as e:
+                                print(f"Error parsing GPX file {filename}: {e}")
 
     # Process csv file of Empire Wind boulder locations
     if csv_path and csv_path.exists():
