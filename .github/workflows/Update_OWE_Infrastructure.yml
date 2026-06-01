@@ -26,6 +26,7 @@ jobs:
           activate-environment: arcgis-api
           auto-activate-base: false
           use-mamba: true
+          installer-type: mamba
 
       - name: Install dependencies
         shell: bash -l {0}
