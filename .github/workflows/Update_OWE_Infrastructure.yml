@@ -25,13 +25,13 @@ jobs:
           channels: conda-forge, esri
           activate-environment: arcgis-api
           auto-activate-base: false
+          use-mamba: true
 
       - name: Install dependencies
         shell: bash -l {0}
         run: |
           # 1. Install EVERYTHING spatial through conda-forge first
-          # This ensures GEOS, GDAL, and PROJ are all synced.
-          conda install -c conda-forge \
+          mamba install -c conda-forge \
             gdal=3.10.0 \
             geopandas \
             fiona \
@@ -41,12 +41,11 @@ jobs:
             numpy \
             -y --quiet
 
-          # 2. Install arcgis via the esri channel if possible, or pip last.
-          # Note: 'arcgis' on conda-forge is the most stable for Linux runners.
-          conda install -c conda-forge arcgis=2.4.1 -y --quiet
+          # 2. Install arcgis via the esri channel
+          mamba install -c conda-forge arcgis=2.4.1 -y --quiet
           
-          # 3. Only use Pip for non-spatial utility libraries
-          pip install python-dotenv requests pyshp
+          # 3. Use explicit environment Pip for utilities and pyshp
+          python -m pip install python-dotenv requests pyshp
 
       - name: Execute Python script
         shell: bash -l {0}
