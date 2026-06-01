@@ -62,9 +62,7 @@ def run_workflow():
         gis=gis,
         item_id=cable_protection_config.cable_agol_id,
         geojson_map=cable_protection_config.geojson_cable_protection_projects,
-        gpx_map=cable_protection_config.gpx_cable_protection_projects,
-        point_idx=0,  
-        poly_idx=1
+        gpx_map=cable_protection_config.gpx_cable_protection_projects
     )
 
 # Run the workflow
