@@ -38,6 +38,7 @@ jobs:
             shapely \
             pandas \
             numpy \
+            pip \
             -y --quiet
 
           # 2. Install arcgis via the esri channel
