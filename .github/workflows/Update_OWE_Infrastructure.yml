@@ -44,8 +44,8 @@ jobs:
           # 2. Install arcgis via the esri channel
           conda install -c conda-forge arcgis=2.4.1 -y --quiet
           
-          # 3. Use explicit environment Pip for utilities and pyshp
-          python -m pip install python-dotenv requests pyshp
+          # 3. Use explicit environment Pip for utilities
+          python -m pip install python-dotenv requests
 
       - name: Execute Python script
         shell: bash -l {0}

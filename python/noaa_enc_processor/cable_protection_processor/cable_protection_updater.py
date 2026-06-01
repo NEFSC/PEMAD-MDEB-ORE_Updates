@@ -7,10 +7,10 @@ import io
 import zipfile
 import requests
 import json
-import shapefile  
+import xml.etree.ElementTree as ET
 from arcgis.gis import GIS
 
-def update_cable_protection_layer(gis, item_id, geojson_map, shapefile_map, point_idx=0, poly_idx=1):
+def update_cable_protection_layer(gis, item_id, geojson_map, gpx_map, point_idx=0, poly_idx=1):
     # Separate data buckets based on geometry type
     all_esri_lines_polys = []
     all_esri_points = []
@@ -47,13 +47,44 @@ def update_cable_protection_layer(gis, item_id, geojson_map, shapefile_map, poin
                                     esri_geometry['paths'] = [coords]
                                 elif geom_type == 'MultiLineString':
                                     esri_geometry['paths'] = coords if isinstance(coords[0][0], list) else [coords]
+                                # --- REFACTORED POLYGON VALIDATION LOGIC ---
                                 elif geom_type == 'Polygon':
-                                    esri_geometry['rings'] = coords
+                                    # Ensure the structure is wrapped correctly as a list of rings
+                                    # Expected: [[ [lon1,lat1], [lon2,lat2], ... ]]
+                                    rings = coords if isinstance(coords[0][0], (int, float)) == False else [coords]
+                                    
+                                    # FIX WINDING ORDER: Force outer ring to Clockwise
+                                    fixed_rings = []
+                                    for ring in rings:
+                                        if len(ring) >= 3:
+                                            # Shoelace Formula to calculate orientation area
+                                            area = 0.0
+                                            for i in range(len(ring) - 1):
+                                                area += (ring[i][0] * ring[i+1][1]) - (ring[i+1][0] * ring[i][1])
+                                            
+                                            # area > 0 means Counter-Clockwise (OGC standard)
+                                            # Esri needs outer rings to be Clockwise (area < 0)
+                                            if area > 0:
+                                                print(f"Warning: Counter-Clockwise ring detected in {filename}. Reversing vertices for AGOL layout.")
+                                                ring = ring[::-1] # Reverse the coordinate points array
+                                        fixed_rings.append(ring)
+                                        
+                                    esri_geometry['rings'] = fixed_rings
+
                                 elif geom_type == 'MultiPolygon':
                                     flat_rings = []
+                                    # Extract nested geometry layers out to an Esri flat ring set
                                     for poly in coords:
                                         for ring in poly:
+                                            if len(ring) >= 3:
+                                                # Fix winding order for MultiPolygon components as well
+                                                area = 0.0
+                                                for i in range(len(ring) - 1):
+                                                    area += (ring[i][0] * ring[i+1][1]) - (ring[i+1][0] * ring[i][1])
+                                                if area > 0:
+                                                    ring = ring[::-1]
                                             flat_rings.append(ring)
+                                            
                                     esri_geometry['rings'] = flat_rings
                                 elif geom_type == 'Point':
                                     esri_geometry['x'] = coords[0]
@@ -73,82 +104,56 @@ def update_cable_protection_layer(gis, item_id, geojson_map, shapefile_map, poin
                         except Exception as e:
                             print(f"Error parsing GeoJSON feature in {filename}: {e}")
 
-    # 2. Download and process Shapefile zipped files
-    for url, project_name in shapefile_map.items():
-        print(f"Downloading Shapefile: {url} for Project: {project_name}")
+    # 2. Download and process gpx zipped files
+    for url, project_name in gpx_map.items():
+        print(f"Downloading GPX Points: {url} for Project: {project_name}")
         response = requests.get(url)
         if response.status_code != 200:
             print(f"Failed to download {url}")
             continue
             
         with zipfile.ZipFile(io.BytesIO(response.content)) as z:
-            shp_file = next((io.BytesIO(z.read(f)) for f in z.namelist() if f.endswith('.shp')), None)
-            shx_file = next((io.BytesIO(z.read(f)) for f in z.namelist() if f.endswith('.shx')), None)
-            dbf_file = next((io.BytesIO(z.read(f)) for f in z.namelist() if f.endswith('.dbf')), None)
-            
-            if not shp_file or not dbf_file:
-                print(f"Incomplete shapefile contents inside zip for {url}")
-                continue
-                
-            try:
-                with shapefile.Reader(shp=shp_file, shx=shx_file, dbf=dbf_file) as sf:
-                    fields = [f[0].lower() for f in sf.fields[1:]] 
-                    
-                    for shape_record in sf.shapeRecords():
-                        shape = shape_record.shape
-                        record_dict = dict(zip(fields, shape_record.record))
-                        
-                        formatted_props = {
-                            "Protection_ID": str(record_dict.get('name') or record_dict.get('id', '')),
-                            "Information": str(record_dict.get('desc') or record_dict.get('type', '')),
-                            "Project": project_name
-                        }
-                        
-                        esri_geometry = {"spatialReference": {"wkid": 4326}}
-                        is_point = False
-                        
-                        if shape.shapeType in [3, 13, 23]: 
-                            parts = shape.parts
-                            points = shape.points
-                            paths = []
-                            for idx in range(len(parts)):
-                                start = parts[idx]
-                                end = parts[idx+1] if idx+1 < len(parts) else len(points)
-                                paths.append(points[start:end])
-                            esri_geometry['paths'] = paths
+            for filename in z.namelist():
+                if filename.endswith('.gpx'):
+                    with z.open(filename) as f:
+                        try:
+                            tree = ET.parse(f)
+                            root = tree.getroot()
                             
-                        elif shape.shapeType in [5, 15, 25]: 
-                            parts = shape.parts
-                            points = shape.points
-                            rings = []
-                            for idx in range(len(parts)):
-                                start = parts[idx]
-                                end = parts[idx+1] if idx+1 < len(parts) else len(points)
-                                rings.append(points[start:end])
-                            esri_geometry['rings'] = rings
+                            # Extract dynamic GPX namespace schemas
+                            ns = {'gpx': root.tag.split('}')[0].strip('{')} if '}' in root.tag else {'gpx': ''}
+                            prefix = 'gpx:' if ns['gpx'] else ''
                             
-                        elif shape.shapeType in [1, 11, 21]: 
-                            esri_geometry['x'] = shape.points[0][0]
-                            esri_geometry['y'] = shape.points[0][1]
-                            is_point = True
+                            # Strictly query for waypoints (<wpt>)
+                            waypoints = root.findall(f'.//{prefix}wpt', ns)
+                            print(f"Found {len(waypoints)} waypoint nodes in {filename}")
                             
-                        esri_feat = {
-                            "attributes": {
-                                "Protection_ID": str(record_dict.get('name') or record_dict.get('id', '')),
-                                "Information": str(record_dict.get('desc') or record_dict.get('type', '')),
-                                "Project": project_name
-                            },
-                            "geometry": esri_geometry
-                        }
-                        
-                        if is_point:
-                            all_esri_points.append(esri_feat)
-                        else:
-                            all_esri_lines_polys.append(esri_feat)
-                            
-            except Exception as e:
-                print(f"Error decoding Shapefile structure: {e}")
-
+                            for wpt in waypoints:
+                                try:
+                                    lon = float(wpt.get('lon'))
+                                    lat = float(wpt.get('lat'))
+                                    name_el = wpt.find(f'{prefix}name', ns)
+                                    desc_el = wpt.find(f'{prefix}desc', ns)
+                                    
+                                    point_feat = {
+                                        "attributes": {
+                                            "Protection_ID": name_el.text if name_el is not None else "GPX-WPT",
+                                            "Information": desc_el.text if desc_el is not None else "Waypoint location",
+                                            "Project": project_name
+                                        },
+                                        "geometry": {
+                                            "x": lon,
+                                            "y": lat,
+                                            "spatialReference": {"wkid": 4326}
+                                        }
+                                    }
+                                    # Route 100% of these features into the point bucket
+                                    all_esri_points.append(point_feat)
+                                except (ValueError, TypeError):
+                                    continue
+                                    
+                        except Exception as e:
+                            print(f"Error decoding GPX Point structure in {filename}: {e}")
 
     # ====================================================
     # HELPER FUNCTION FOR SUB-LAYER UPLOADS

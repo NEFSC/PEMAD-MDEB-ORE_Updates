@@ -12,8 +12,8 @@ geojson_cable_protection_projects = {
     "https://www.quintham.com//EMIN/5/16/48/GeoJson.zip": "Vineyard Wind 1"
 }
 
-shapefile_cable_protection_projects = {
-    "https://www.quintham.com//EMIN/8/29/115/Shapefile.zip": "Revolution Wind"
+gpx_cable_protection_projects = {
+    "https://www.quintham.com//EMIN/8/29/115/GPX.zip": "Revolution Wind"
 }
 
 cable_agol_id = os.getenv("CABLE_ITEM_ID")
