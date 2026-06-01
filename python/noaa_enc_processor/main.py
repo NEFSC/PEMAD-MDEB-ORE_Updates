@@ -6,6 +6,7 @@ import os
 from arcgis.gis import GIS
 from enc_processor import config, downloader, processor, field_updater
 from boulder_relocation_processor import boulder_config, boulder_relocation_updater
+from cable_protection_processor import cable_protection_config, cable_protection_updater
 
 def run_workflow():
     """
@@ -54,6 +55,14 @@ def run_workflow():
         geojson_map=boulder_config.geojson_boulder_projects, 
         csv_path=boulder_config.csv_file_path,
         extra_points=boulder_config.added_points
+    )
+
+    # 7. Update the AGOL cable protection feature service
+    cable_protection_updater.update_cable_protection_layer(
+        gis=gis,
+        item_id=cable_protection_config.cable_agol_id,
+        geojson_map=cable_protection_config.geojson_cable_protection_projects,
+        shapefile_map=cable_protection_config.shapefile_cable_protection_projects
     )
 
 # Run the workflow

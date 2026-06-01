@@ -46,7 +46,7 @@ jobs:
           conda install -c conda-forge arcgis=2.4.1 -y --quiet
           
           # 3. Only use Pip for non-spatial utility libraries
-          pip install python-dotenv requests
+          pip install python-dotenv requests pyshp
 
       - name: Execute Python script
         shell: bash -l {0}
@@ -57,10 +57,10 @@ jobs:
           ARCGIS_USERNAME: ${{ secrets.ARCGIS_USERNAME }}
           ARCGIS_PASSWORD: ${{ secrets.ARCGIS_PASSWORD }}
           BUOY_ITEM_ID: ${{ secrets.BUOY_ITEM_ID }}
-          CABLE_ITEM_ID: ${{ secrets.CABLE_ITEM_ID }}
           SUBSTATION_ITEM_ID: ${{ secrets.SUBSTATION_ITEM_ID }}
           TURBINE_ITEM_ID: ${{ secrets.TURBINE_ITEM_ID }}
           BOULDER_ITEM_ID: ${{ secrets.BOULDER_ITEM_ID }}
+          CABLE_ITEM_ID: ${{secrets.CABLE_ITEM_ID }}
 
       - name: Setup Git
         run: |
