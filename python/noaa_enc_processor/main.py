@@ -52,8 +52,8 @@ def run_workflow():
         gis=gis,
         item_id = boulder_config.boulder_agol_id,
         geojson_map=boulder_config.geojson_boulder_projects, 
-        gpx_project_map=boulder_config.gpx_boulder_projects,
-        csv_path=boulder_config.csv_file_path
+        csv_path=boulder_config.csv_file_path,
+        extra_points=boulder_config.added_points
     )
 
 # Run the workflow

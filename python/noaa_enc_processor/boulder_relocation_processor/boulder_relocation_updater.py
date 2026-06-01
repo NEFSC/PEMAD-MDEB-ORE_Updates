@@ -8,10 +8,9 @@ import zipfile
 import requests
 import json
 import csv
-import xml.etree.ElementTree as ET # --- XML parser for GPX payload
 from arcgis.gis import GIS
 
-def update_boulder_layer(gis, item_id, geojson_map, gpx_project_map=None, csv_path=None):
+def update_boulder_layer(gis, item_id, geojson_map, csv_path=None, extra_points=None):
     all_esri_features = []
 
     # Download and process GeoJSON files
@@ -50,63 +49,6 @@ def update_boulder_layer(gis, item_id, geojson_map, gpx_project_map=None, csv_pa
                             }
                             all_esri_features.append(esri_feat) 
 
-    # Download and process remote GPX zip files
-    # Using GPX because this Quintham plotter file didn't have a GeoJSON option
-    if gpx_project_map:
-        for url, project_name in gpx_project_map.items():
-            print(f"Downloading GPX: {url} for Project: {project_name}")
-            
-            response = requests.get(url)
-            if response.status_code != 200:
-                print(f"Failed to download {url}")
-                continue
-                
-            with zipfile.ZipFile(io.BytesIO(response.content)) as z:
-                for filename in z.namelist():
-                    if filename.endswith('.gpx'):
-                        with z.open(filename) as f:
-                            try:
-                                # Parse XML 
-                                tree = ET.parse(f)
-                                root = tree.getroot()
-                                
-                                # Dynamic handling of GPX XML namespaces
-                                ns = {'gpx': root.tag.split('}')[0].strip('{')} if '}' in root.tag else {'gpx': ''}
-                                prefix = 'gpx:' if ns['gpx'] else ''
-                                
-                                # Query for <wpt> (waypoints). If Quintham tracks them as tracks/routes,
-                                # use f'.//{prefix}trkpt' instead.
-                                waypoints = root.findall(f'.//{prefix}wpt', ns)
-                                
-                                for wpt in waypoints:
-                                    try:
-                                        lon = float(wpt.get('lon'))
-                                        lat = float(wpt.get('lat'))
-                                        
-                                        name_el = wpt.find(f'{prefix}name', ns)
-                                        desc_el = wpt.find(f'{prefix}desc', ns)
-                                        
-                                        boulder_id = name_el.text if name_el is not None else None
-                                        information = desc_el.text if desc_el is not None else None
-                                        
-                                        gpx_feat = {
-                                            "attributes": {
-                                                "Boulder_ID": boulder_id,
-                                                "Information": information,
-                                                "Project": project_name
-                                            },
-                                            "geometry": {
-                                                "x": lon,
-                                                "y": lat,
-                                                "spatialReference": {"wkid": 4326}
-                                            }
-                                        }
-                                        all_esri_features.append(gpx_feat)
-                                    except (ValueError, TypeError):
-                                        continue
-                            except Exception as e:
-                                print(f"Error parsing GPX file {filename}: {e}")
-
     # Process csv file of Empire Wind boulder locations
     if csv_path and csv_path.exists():
         print(f"Processing CSV file: {csv_path}")
@@ -132,6 +74,27 @@ def update_boulder_layer(gis, item_id, geojson_map, gpx_project_map=None, csv_pa
                     print(f"Skipping CSV row {row.get('Boulder_ID')} due to invalid coordinates.")
     else:
         print(f"Note: No CSV file found or processed at {csv_path}")
+
+    # Process manual list of points
+    if extra_points:
+        print(f"Adding {len(extra_points)} manual points...")
+        for pt in extra_points:
+            try:
+                manual_feat = {
+                    "attributes": {
+                        "Boulder_ID": pt.get('Boulder_ID'),
+                        "Information": pt.get('Information'),
+                        "Project": pt.get('Project')
+                    },
+                    "geometry": {
+                        "x": float(pt.get('Lon')),
+                        "y": float(pt.get('Lat')),
+                        "spatialReference": {"wkid": 4326}
+                    }
+                }
+                all_esri_features.append(manual_feat)
+            except (ValueError, TypeError) as e:
+                print(f"Skipping manual point {pt.get('Boulder_ID')} due to invalid coordinates.")
 
     # Upload to AGOL
     if not all_esri_features:
