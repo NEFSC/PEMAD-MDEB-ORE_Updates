@@ -9,6 +9,8 @@ import requests
 import json
 import xml.etree.ElementTree as ET
 from arcgis.gis import GIS
+from shapely.geometry import shape
+from shapely.ops import orient
 
 def update_cable_protection_layer(gis, item_id, geojson_map, gpx_map, point_idx=0, poly_idx=1):
     # Separate data buckets based on geometry type
@@ -30,8 +32,11 @@ def update_cable_protection_layer(gis, item_id, geojson_map, gpx_map, point_idx=
                         try:
                             gj_data = json.load(f)
                             for feat in gj_data['features']:
+                                # Skip features missing structural geometry
+                                if not feat.get('geometry') or not feat['geometry'].get('coordinates'):
+                                    continue
+                                    
                                 props = feat['properties']
-                                
                                 formatted_props = {
                                     "Protection_ID": props.get('name') or props.get('id'),
                                     "Information": props.get('description') or props.get('type'),
@@ -43,53 +48,48 @@ def update_cable_protection_layer(gis, item_id, geojson_map, gpx_map, point_idx=
                                 esri_geometry = {"spatialReference": {"wkid": 4326}}
                                 is_point = False
                                 
-                                if geom_type == 'LineString':
-                                    esri_geometry['paths'] = [coords]
-                                elif geom_type == 'MultiLineString':
-                                    esri_geometry['paths'] = coords if isinstance(coords[0][0], list) else [coords]
-                                # --- REFACTORED POLYGON VALIDATION LOGIC ---
-                                elif geom_type == 'Polygon':
-                                    # Ensure the structure is wrapped correctly as a list of rings
-                                    # Expected: [[ [lon1,lat1], [lon2,lat2], ... ]]
-                                    rings = coords if isinstance(coords[0][0], (int, float)) == False else [coords]
-                                    
-                                    # FIX WINDING ORDER: Force outer ring to Clockwise
-                                    fixed_rings = []
-                                    for ring in rings:
-                                        if len(ring) >= 3:
-                                            # Shoelace Formula to calculate orientation area
-                                            area = 0.0
-                                            for i in range(len(ring) - 1):
-                                                area += (ring[i][0] * ring[i+1][1]) - (ring[i+1][0] * ring[i][1])
-                                            
-                                            # area > 0 means Counter-Clockwise (OGC standard)
-                                            # Esri needs outer rings to be Clockwise (area < 0)
-                                            if area > 0:
-                                                print(f"Warning: Counter-Clockwise ring detected in {filename}. Reversing vertices for AGOL layout.")
-                                                ring = ring[::-1] # Reverse the coordinate points array
-                                        fixed_rings.append(ring)
-                                        
-                                    esri_geometry['rings'] = fixed_rings
-
-                                elif geom_type == 'MultiPolygon':
-                                    flat_rings = []
-                                    # Extract nested geometry layers out to an Esri flat ring set
-                                    for poly in coords:
-                                        for ring in poly:
-                                            if len(ring) >= 3:
-                                                # Fix winding order for MultiPolygon components as well
-                                                area = 0.0
-                                                for i in range(len(ring) - 1):
-                                                    area += (ring[i][0] * ring[i+1][1]) - (ring[i+1][0] * ring[i][1])
-                                                if area > 0:
-                                                    ring = ring[::-1]
-                                            flat_rings.append(ring)
-                                            
-                                    esri_geometry['rings'] = flat_rings
-                                elif geom_type == 'Point':
+                                # A. Direct Point Extraction
+                                if geom_type == 'Point':
                                     esri_geometry['x'] = coords[0]
                                     esri_geometry['y'] = coords[1]
                                     is_point = True
+                                    
+                                # B. Direct Linear Track Extraction 
+                                elif geom_type == 'LineString':
+                                    esri_geometry['paths'] = [coords]
+                                elif geom_type == 'MultiLineString':
+                                    esri_geometry['paths'] = coords if isinstance(coords[0][0], list) else [coords]
+                                    
+                                # C. Hardened Polygon Extractor using fallback validation
+                                elif geom_type in ['Polygon', 'MultiPolygon']:
+                                    try:
+                                        raw_poly = shape(feat['geometry'])
+                                        
+                                        # Repair open boundary loops or self-intersections
+                                        if not raw_poly.is_valid:
+                                            raw_poly = raw_poly.buffer(0)
+                                            
+                                        polygons_to_process = [raw_poly] if geom_type == 'Polygon' else list(raw_poly.geoms)
+                                        
+                                        esri_rings = []
+                                        for poly in polygons_to_process:
+                                            # Force Clockwise vertex mapping required by Esri
+                                            esri_compliant_poly = orient(poly, sign=-1)
+                                            if not esri_compliant_poly.exterior:
+                                                continue
+                                            esri_rings.append(list(esri_compliant_poly.exterior.coords))
+                                            for interior in esri_compliant_poly.interiors:
+                                                esri_rings.append(list(interior.coords))
+                                                
+                                        if not esri_rings or not esri_rings[0]:
+                                            raise ValueError("Generated an empty geometry set.")
+                                            
+                                        esri_geometry['rings'] = esri_rings
+                                        
+                                    except Exception as shapely_err:
+                                        # Captures and logs corrupted polygon segments without crashing the script
+                                        print(f"Warning: Skipping corrupted polygon segment in {filename}: {shapely_err}")
+                                        continue 
                                     
                                 esri_feat = {
                                     "attributes": formatted_props,
@@ -104,7 +104,7 @@ def update_cable_protection_layer(gis, item_id, geojson_map, gpx_map, point_idx=
                         except Exception as e:
                             print(f"Error parsing GeoJSON feature in {filename}: {e}")
 
-    # 2. Download and process gpx zipped files
+    # 2. Download and process GPX zipped files (Point mode processing fallback)
     for url, project_name in gpx_map.items():
         print(f"Downloading GPX Points: {url} for Project: {project_name}")
         response = requests.get(url)
@@ -119,15 +119,10 @@ def update_cable_protection_layer(gis, item_id, geojson_map, gpx_map, point_idx=
                         try:
                             tree = ET.parse(f)
                             root = tree.getroot()
-                            
-                            # Extract dynamic GPX namespace schemas
                             ns = {'gpx': root.tag.split('}')[0].strip('{')} if '}' in root.tag else {'gpx': ''}
                             prefix = 'gpx:' if ns['gpx'] else ''
                             
-                            # Strictly query for waypoints (<wpt>)
                             waypoints = root.findall(f'.//{prefix}wpt', ns)
-                            print(f"Found {len(waypoints)} waypoint nodes in {filename}")
-                            
                             for wpt in waypoints:
                                 try:
                                     lon = float(wpt.get('lon'))
@@ -147,11 +142,9 @@ def update_cable_protection_layer(gis, item_id, geojson_map, gpx_map, point_idx=
                                             "spatialReference": {"wkid": 4326}
                                         }
                                     }
-                                    # Route 100% of these features into the point bucket
                                     all_esri_points.append(point_feat)
                                 except (ValueError, TypeError):
                                     continue
-                                    
                         except Exception as e:
                             print(f"Error decoding GPX Point structure in {filename}: {e}")
 
@@ -163,7 +156,6 @@ def update_cable_protection_layer(gis, item_id, geojson_map, gpx_map, point_idx=
             print(f"No {description_label} features discovered to upload.")
             return
 
-        # Target the specific sub-layer inside the service item using index numbers
         try:
             flayer = target_item.layers[layer_index]
         except IndexError:
@@ -204,20 +196,18 @@ def update_cable_protection_layer(gis, item_id, geojson_map, gpx_map, point_idx=
                 if fails:
                     print(f"Batch {(i//1000)+1} had {len(fails)} faults on sub-layer '{flayer.properties.name}'. Error: {fails[0].get('error')}")
 
-
-    # Fetch the main service item once
+    # Run the upload cycle
     target_service_item = gis.content.get(item_id)
     if not target_service_item:
         print(f"Error: Could not retrieve AGOL Item ID: {item_id}")
         return
 
-    # Run the upload cycle for both sub-layers independently
     print(f"\nTargeting Feature Service: {target_service_item.title}")
     
-    print("\n--- Processing Lines/Polygons Sub-Layer ---")
-    upload_to_sublayer(target_service_item, poly_idx, all_esri_lines_polys, "Lines/Polygons")
-    
-    print("\n--- Processing Points Sub-Layer ---")
+    print("\n--- Processing Points Sub-Layer (0: cable_protection) ---")
     upload_to_sublayer(target_service_item, point_idx, all_esri_points, "Points")
+    
+    print("\n--- Processing Lines/Polygons Sub-Layer (1: cable_matressing) ---")
+    upload_to_sublayer(target_service_item, poly_idx, all_esri_lines_polys, "Lines/Polygons")
 
     print("\nSync complete.")
