@@ -25,14 +25,12 @@ jobs:
           channels: conda-forge, esri
           activate-environment: arcgis-api
           auto-activate-base: false
-          use-mamba: true
-          installer-type: mamba
 
       - name: Install dependencies
         shell: bash -l {0}
         run: |
           # 1. Install EVERYTHING spatial through conda-forge first
-          mamba install -c conda-forge \
+          conda install -c conda-forge \
             gdal=3.10.0 \
             geopandas \
             fiona \
@@ -43,7 +41,7 @@ jobs:
             -y --quiet
 
           # 2. Install arcgis via the esri channel
-          mamba install -c conda-forge arcgis=2.4.1 -y --quiet
+          conda install -c conda-forge arcgis=2.4.1 -y --quiet
           
           # 3. Use explicit environment Pip for utilities and pyshp
           python -m pip install python-dotenv requests pyshp
