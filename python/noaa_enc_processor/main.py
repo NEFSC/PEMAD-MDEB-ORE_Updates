@@ -7,6 +7,7 @@ from arcgis.gis import GIS
 from enc_processor import config, downloader, processor, field_updater
 from boulder_relocation_processor import boulder_config, boulder_relocation_updater
 from cable_protection_processor import cable_protection_config, cable_protection_updater
+from scour_protection_processor import scour_protection_config, scour_protection_updater
 
 def run_workflow():
     """
@@ -63,6 +64,15 @@ def run_workflow():
         item_id=cable_protection_config.cable_agol_id,
         geojson_map=cable_protection_config.geojson_cable_protection_projects,
         gpx_map=cable_protection_config.gpx_cable_protection_projects
+    )
+
+    # 8. Update the AGOL scour protection feature service
+    scour_protection_updater.update_scour_protection_layer(
+        gis=gis,
+        item_id=scour_protection_config.scour_agol_id,
+        geojson_map=scour_protection_config.geojson_scour_protection_projects,
+        point_idx=0,  
+        poly_idx=1
     )
 
 # Run the workflow
