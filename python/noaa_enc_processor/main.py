@@ -61,7 +61,7 @@ def run_workflow():
     # 7. Update the AGOL cable protection feature service
     cable_protection_updater.update_cable_protection_layer(
         gis=gis,
-        item_id=cable_protection_config.cable_agol_id,
+        item_id=cable_protection_config.cable_protection_agol_id,
         geojson_map=cable_protection_config.geojson_cable_protection_projects,
         gpx_map=cable_protection_config.gpx_cable_protection_projects
     )

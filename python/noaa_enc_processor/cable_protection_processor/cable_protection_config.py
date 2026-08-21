@@ -16,4 +16,4 @@ gpx_cable_protection_projects = {
     "https://www.quintham.com//EMIN/8/29/115/GPX.zip": "Revolution Wind"
 }
 
-cable_agol_id = os.getenv("CABLE_ITEM_ID")
+cable_protection_agol_id = os.getenv("CABLE_PROTECTION_ITEM_ID")

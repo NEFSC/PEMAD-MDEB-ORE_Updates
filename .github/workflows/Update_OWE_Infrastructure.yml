@@ -60,6 +60,7 @@ jobs:
           TURBINE_ITEM_ID: ${{ secrets.TURBINE_ITEM_ID }}
           BOULDER_ITEM_ID: ${{ secrets.BOULDER_ITEM_ID }}
           CABLE_ITEM_ID: ${{secrets.CABLE_ITEM_ID }}
+          CABLE_PROTECTION_ITEM_ID: ${{secrets.CABLE_PROTECTION_ITEM_ID }}
           SCOUR_ITEM_ID: ${{secrets.SCOUR_ITEM_ID }}
 
       - name: Setup Git
