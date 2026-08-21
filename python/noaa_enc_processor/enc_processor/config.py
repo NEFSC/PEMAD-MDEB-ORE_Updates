@@ -19,7 +19,7 @@ target_folder_path = base_dir / "data-raw" / "ENC"
 # Get AGOL item ID credentials securely using os.getenv()
 turbine_agol_id = os.getenv("TURBINE_ITEM_ID")
 #buoy_agol_id = os.getenv("BUOY_ITEM_ID")
-#cable_agol_id = os.getenv("CABLE_ITEM_ID")
+cable_agol_id = os.getenv("CABLE_ITEM_ID")
 substation_agol_id = os.getenv("SUBSTATION_ITEM_ID")
 
 # Define the file path for the S-57 data dictionary CSV
@@ -36,14 +36,14 @@ extraction_features = {
         "agol_layer_index": 0,
         "mapping_csv": data_dict_csv_path},
 
-    # "Submarine_Cables":{
-    #     "layer_name": "CBLSUB", # Name of ENC submarine cable layer  
-    #     "filter_col": "CATCBL",
-    #     "filter_val": 1, # Power cables are 1 catcbl
-    #     "output_name": "NOAA_ENC_PowerCables",
-    #      "agol_item_id": cable_agol_id,
-    #      "agol_layer_index": 0,
-    #      "mapping_csv": data_dict_csv_path},
+    "Submarine_Cables":{
+        "layer_name": "CBLSUB", # Name of ENC submarine cable layer  
+        "filter_col": "CATCBL",
+        "filter_val": 1, # Power cables are 1 catcbl
+        "output_name": "NOAA_ENC_PowerCables",
+         "agol_item_id": cable_agol_id,
+         "agol_layer_index": 0,
+         "mapping_csv": data_dict_csv_path},
     
     "Offshore_Substations":{
         "layer_name": "OFSPLF", # Name of ENC offshore substation layer  
@@ -67,13 +67,13 @@ extraction_features = {
 # Define file path for the S-57 field description CSVs
 turbine_csv_path = base_dir / "data" / "csv" / "S57_ENC_Object_Definitions_LNDMRK.csv"
 #buoy_csv_path = base_dir / "data" / "csv" / "S57_ENC_Object_Definitions_BOYSPP.csv"
-#cable_csv_path = base_dir / "data" / "csv" / "S57_ENC_Object_Definitions_CBLSUB.csv"
+cable_csv_path = base_dir / "data" / "csv" / "S57_ENC_Object_Definitions_CBLSUB.csv"
 substation_csv_path = base_dir / "data" / "csv" / "S57_ENC_Object_Definitions_OFSPLF.csv"
 
 # Map the AGOL feature service item IDs to their corresponding CSV field definition file paths
 item_id_csv_map = {
     turbine_agol_id: turbine_csv_path,
     #buoy_agol_id: buoy_csv_path,
-    #cable_agol_id: cable_csv_path,
+    cable_agol_id: cable_csv_path,
     substation_agol_id: substation_csv_path
 }
