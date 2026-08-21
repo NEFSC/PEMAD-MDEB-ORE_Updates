@@ -10,7 +10,8 @@ charts_to_download = ["US4NY1BY.zip", "US4RI1CB.zip", "US4MA1CC.zip", "US4MA1CD.
 "US4MA1CE.zip", "US4MA1DE.zip", "US4MA1DD.zip", "US4MA1DC.zip", "US4RI1DB.zip", 
 "US4NY1CY.zip", "US4NJ1FH.zip", "US4NJ1FG.zip", "US4NY1BM.zip", "US5RI1BE.zip", 
 "US4NY1BX.zip", "US4VA1AG.zip", "US4VA1AH.zip", "US4VA1AI.zip", "US4VA1BG.zip", 
-"US4VA1BH.zip", "US4VA1BI.zip", "US4RI1EA.zip", "US4MA1EE.zip", "US4NY1BW.zip", "US4VA1AF.zip"]
+"US4VA1BH.zip", "US4VA1BI.zip", "US4RI1EA.zip", "US4MA1EE.zip", "US4NY1BW.zip", 
+"US4VA1AF.zip", "US4RI1EB.zip"]
 
 # Set a folder location on disc to download the chart data to 
 base_dir = Path(__file__).resolve().parent.parent.parent.parent
