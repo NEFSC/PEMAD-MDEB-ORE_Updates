@@ -95,6 +95,17 @@ def process_and_update_features(gis, data_dir, feature_config):
         except Exception as e:
             print(f"[{name}] failed to combine GeoDataFrames: {e}")
             continue
+
+        # Remove wind turbines on land
+        if name == "Wind_Turbines":
+                source_col = 'source_file' if 'source_file' in full_gdf.columns else (
+                    'SOURCE_FILE' if 'SOURCE_FILE' in full_gdf.columns else None
+                )
+                if source_col:
+                    initial_count = len(full_gdf)
+                    full_gdf = full_gdf[full_gdf[source_col] != 'US4RI1EB.zip'] # This chart has two wind turbines on land
+                    removed_count = initial_count - len(full_gdf)
+                    print(f"[{name}] Removed {removed_count} rows where {source_col} == 'US4RI1EB.zip'.")
         
         # Remove duplicate features in the wind_turbines layer using the FIDN column
         # Check if the current feature set is the one containing Wind Turbines
