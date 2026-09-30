@@ -54,7 +54,9 @@ def run_workflow():
         gis=gis,
         item_id = boulder_config.boulder_agol_id,
         geojson_map=boulder_config.geojson_boulder_projects, 
-        csv_path=boulder_config.csv_file_path,
+        public_service_url=boulder_config.empire_feature_service_url,
+        layer_indices=boulder_config.layer_indices,
+        field_mapping=boulder_config.field_mapping,
         extra_points=boulder_config.added_points
     )
 

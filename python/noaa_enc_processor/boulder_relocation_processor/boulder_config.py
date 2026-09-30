@@ -5,10 +5,26 @@
 from pathlib import Path
 import os
 
-# Path to csv file for Empire Wind boulder relocation
-config_file = Path(__file__).resolve()
-project_root = config_file.parents[3]
-csv_file_path = project_root / "data" / "csv" / "EmpireWind_BoulderRelocation.csv"
+# # Path to csv file for Empire Wind boulder relocation
+# config_file = Path(__file__).resolve()
+# project_root = config_file.parents[3]
+# csv_file_path = project_root / "data" / "csv" / "EmpireWind_BoulderRelocation.csv"
+
+# Originally, Empire Wind boulder data was found through mariner's reports on their website and
+# compiled into a csv; however, now there is a public feature service with the data
+
+# Feature service for Empire Wind boulder data
+empire_feature_service_url = "https://services-eu1.arcgis.com/svnWw1yovvhlm3ej/arcgis/rest/services/Boulder_Locations__2024_08_15/FeatureServer"
+
+# Define layer indices to pull data from (Layers 46- 53 - Final Boulder Locations)
+layer_indices = [46, 47, 48, 49, 50, 51, 52, 53]
+
+# Mapping field names to my AGOL schema
+field_mapping = {
+    "Boulder_ID": "Target_ID",    
+    "Information": "Comments",  
+    "Project": "Empire Wind"           # set to Empire Wind
+}
 
 # Map the URL to the specific Project Name
 geojson_boulder_projects = {
