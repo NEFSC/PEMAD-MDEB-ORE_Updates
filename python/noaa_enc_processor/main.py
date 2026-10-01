@@ -65,7 +65,10 @@ def run_workflow():
         gis=gis,
         item_id=cable_protection_config.cable_protection_agol_id,
         geojson_map=cable_protection_config.geojson_cable_protection_projects,
-        gpx_map=cable_protection_config.gpx_cable_protection_projects
+        gpx_map=cable_protection_config.gpx_cable_protection_projects,
+        public_service_url=cable_protection_config.empire_feature_service_url,
+        layer_indices=cable_protection_config.layer_indices,
+        field_mapping=cable_protection_config.field_mapping
     )
 
     # 8. Update the AGOL scour protection feature service

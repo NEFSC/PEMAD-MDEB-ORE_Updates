@@ -9,8 +9,9 @@ import requests
 import json
 import xml.etree.ElementTree as ET
 from arcgis.gis import GIS
+from arcgis.features import FeatureLayerCollection
 
-def update_cable_protection_layer(gis, item_id, geojson_map, gpx_map):
+def update_cable_protection_layer(gis, item_id, geojson_map, gpx_map, public_service_url=None, layer_indices=None, field_mapping=None):
     all_esri_points = []
 
     # 1. Download and process GeoJSON zipped files
@@ -103,6 +104,54 @@ def update_cable_protection_layer(gis, item_id, geojson_map, gpx_map):
                                     continue
                         except Exception as e:
                             print(f"Error decoding GPX Point structure in {filename}: {e}")
+
+    # 3. Query data from public ArcGIS Online Feature Service layers for Empire Wind
+    if public_service_url and layer_indices:
+        print(f"Querying public feature service: {public_service_url}")
+        active_mapping = field_mapping or {
+            "Protection_ID": "Mattress", 
+            "Information": "Descriptio", 
+            "Project": "Empire Wind"
+        }
+        
+        try:
+            service = FeatureLayerCollection(public_service_url)
+            
+            for idx in layer_indices:
+                print(f"  Fetching features from layer index [{idx}]...")
+                layer = service.layers[idx]
+                
+                # Retrieve all features reprojected to WGS84
+                feature_set = layer.query(where="1=1", out_sr=4326, return_geometry=True)
+                
+                for feat in feature_set.features:
+                    geom = feat.geometry
+                    if not geom or 'x' not in geom or 'y' not in geom:
+                        continue
+                        
+                    attrs = feat.attributes
+                    
+                    def resolve_val(target_key):
+                        source_key_or_val = active_mapping.get(target_key)
+                        if source_key_or_val in attrs:
+                            return attrs[source_key_or_val]
+                        return source_key_or_val
+
+                    agol_feat = {
+                        "attributes": {
+                            "Protection_ID": resolve_val("Protection_ID"),
+                            "Information": resolve_val("Information"),
+                            "Project": resolve_val("Project")
+                        },
+                        "geometry": {
+                            "x": geom['x'],
+                            "y": geom['y'],
+                            "spatialReference": {"wkid": 4326}
+                        }
+                    }
+                    all_esri_points.append(agol_feat)
+        except Exception as e:
+            print(f"Error querying public AGOL service: {e}")
 
     # ====================================================
     # AGOL UPLOAD LOGIC
